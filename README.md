@@ -57,14 +57,8 @@ and feature-importance detail: [`PHASE1_FINDINGS.md`](./PHASE1_FINDINGS.md).**
 ├── PHASE1_FINDINGS.md          # Full write-up: methodology, findings, caveats
 ├── prepare_dashboard_data.py   # Merges NASA FIRMS fire data + OpenAQ PM2.5 into one daily table
 ├── stubble_pm25_model.py       # Feature engineering + Ridge / RF / XGBoost model comparison
-├── dashboard/                  # Single-view React dashboard (data embedded at build time)
-└── stubble-dashboard-app/      # Multi-page React app (routed: signal, trends, model, simulator)
+└── dashboard/                  # Single-view React dashboard (data embedded at build time)
 ```
-
-Two dashboards exist because they answer different needs: `dashboard/` is a
-quick embedded snapshot view, while `stubble-dashboard-app/` is a fuller,
-routed exploration tool (see its own README for the page list). Both are
-Vite + React and can be deployed as static sites.
 
 ## Data sources
 
@@ -92,10 +86,10 @@ python prepare_dashboard_data.py
 python stubble_pm25_model.py
 ```
 
-## Running a dashboard
+## Running the dashboard
 
 ```bash
-cd dashboard              # or stubble-dashboard-app
+cd dashboard
 npm install
 npm run dev
 ```
