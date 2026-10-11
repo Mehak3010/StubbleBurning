@@ -2,6 +2,9 @@ AQI Datasets/
 cleaned_daily_fire_pm25.csv
 master_dashboard_data.csv
 model_dataset_with_features.csv
+weather_daily.csv
+master_with_weather.csv
+ablation_results.csv
 
 # Catch-all: ignore any CSV/data file anywhere in the repo unless explicitly
 # force-added (git add -f) — keeps future dataset drops from leaking in too

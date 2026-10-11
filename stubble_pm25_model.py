@@ -40,14 +40,24 @@ MASTER_CSV = "master_dashboard_data.csv"  # from prepare_dashboard_data.py
 def load_and_clean(path=MASTER_CSV):
     df = pd.read_csv(path, parse_dates=["date"])
     df = df.sort_values("date").reset_index(drop=True)
+
+    # Guard: a season with mostly-missing or all-zero fires means the FIRMS merge failed
+    yr = df["date"].dt.year
+    cov = df.groupby(yr)["fire_count"].apply(lambda s: s.notna().mean())
+    tot = df.groupby(yr)["fire_count"].sum()
+    bad = sorted(set(cov[cov < 0.5].index) | set(tot[tot == 0].index))
+    if bad:
+        raise ValueError(f"No usable fire data for seasons {bad}; "
+                         "fix the FIRMS merge before modeling.")
+
     for c in ["fire_count", "avg_frp", "max_frp"]:
         df[c] = df[c].fillna(0)                         # NaN = zero-fire day
+
     df["season"] = df["date"].dt.year
     df["day_of_season"] = df.groupby("season")["date"].transform(
         lambda s: (s - s.min()).dt.days
     )
     return df
-
 
 def cross_correlation(df, max_lag=7):
     """Same-day vs lagged correlation between fire_count and avg_pm25."""

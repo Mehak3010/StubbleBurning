@@ -34,39 +34,42 @@ if not OPENAQ_API_KEY:
 FIRMS_FOLDER = r"F:\Stubble Burning\AQI Datasets"  # <-- update to your actual FIRMS folder
 
 def load_firms_data(folder):
-    # Only load J1V files (VIIRS on NOAA-20 / JPSS-1). Skip SV files
-    # (VIIRS on S-NPP) so all 4 years use the same single satellite source
-    # -- this keeps fire counts comparable year to year (no double-counting).
-    all_files = glob.glob(f"{folder}/fire_archive_J1V*.csv")
+    patterns = ["fire_archive_J1V*.csv", "fire_nrt_J1V*.csv"]
+    all_files = []
+    for p in patterns:
+        all_files += glob.glob(os.path.join(folder, p))
     if not all_files:
-        raise FileNotFoundError(
-            f"No J1V CSVs found in '{folder}/'. Check the folder path and that "
-            f"your NOAA-20 files are named fire_archive_J1V-C2_*.csv"
-        )
+        raise FileNotFoundError(f"No J1V CSVs found in '{folder}'.")
 
     dfs = []
     for f in all_files:
         df = pd.read_csv(f)
         dfs.append(df)
-        print(f"Loaded {f}: {len(df)} rows")
+        print(f"Loaded {os.path.basename(f)}: {len(df)} rows")
 
     fire_df = pd.concat(dfs, ignore_index=True)
-
-    # Standardize date column
     fire_df["acq_date"] = pd.to_datetime(fire_df["acq_date"])
 
-    # Aggregate to daily: fire count + average/max FRP (fire radiative power = intensity proxy)
+    # Archive + NRT files can overlap; don't double count
+    before = len(fire_df)
+    fire_df = fire_df.drop_duplicates(subset=["latitude", "longitude", "acq_date", "acq_time"])
+    print(f"Dropped {before - len(fire_df)} duplicate detections")
+
+    # Safety check: every season must have fire data
+    per_year = fire_df.groupby(fire_df["acq_date"].dt.year).size()
+    print("\nFire detections per year:\n", per_year)
+    for yr in (2022, 2023, 2024, 2025):
+        if per_year.get(yr, 0) == 0:
+            raise ValueError(f"No fire detections found for {yr}. Check your FIRMS files.")
+
     daily_fire = (
         fire_df.groupby("acq_date")
-        .agg(
-            fire_count=("latitude", "count"),
-            avg_frp=("frp", "mean"),
-            max_frp=("frp", "max"),
-        )
+        .agg(fire_count=("latitude", "count"),
+             avg_frp=("frp", "mean"),
+             max_frp=("frp", "max"))
         .reset_index()
         .rename(columns={"acq_date": "date"})
     )
-
     return daily_fire
 
 
