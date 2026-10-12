@@ -1,0 +1,470 @@
+import React, { useState, useMemo } from 'react';
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Label, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
+import { Flame, Wind, Activity, TrendingUp, AlertTriangle, Radio, Map, BrainCircuit, ClipboardList, Gauge } from 'lucide-react';
+
+const DAILY = [{"date":"2022-10-01","season":2022,"day_of_season":0,"fire_count":6.0,"avg_frp":4.56,"max_frp":8.41,"avg_pm25":79.0},{"date":"2022-10-02","season":2022,"day_of_season":1,"fire_count":24.0,"avg_frp":3.17,"max_frp":5.51,"avg_pm25":66.89},{"date":"2022-10-03","season":2022,"day_of_season":2,"fire_count":34.0,"avg_frp":4.93,"max_frp":13.08,"avg_pm25":44.04},{"date":"2022-10-04","season" ...[trimmed]
+const LAG_CORR = [{"lag":0,"corr":0.4351},{"lag":1,"corr":0.3975},{"lag":2,"corr":0.3345},{"lag":3,"corr":0.291},{"lag":4,"corr":0.2488},{"lag":5,"corr":0.226},{"lag":6,"corr":0.2153},{"lag":7,"corr":0.2509}];
+const TEST_PREDS = [{"date":"2025-10-04","avg_pm25":64.1,"pred_ridge":44.0,"pred_rf":30.0,"pred_xgb":33.5},{"date":"2025-10-05","avg_pm25":63.6,"pred_ridge":51.5,"pred_rf":29.7,"pred_xgb":34.9},{"date":"2025-10-06","avg_pm25":30.6,"pred_ridge":51.5,"pred_rf":30.6,"pred_xgb":19.9},{"date":"2025-10-07","avg_pm25":21.1,"pred_ridge":79.0,"pred_rf":29.7,"pred_xgb":24.0},{"date":"2025-10-08","avg_pm25": ...[trimmed]
+const IMPORTANCE = [{"feature":"fire_count_roll7","weight":-74.08},{"feature":"fire_count","weight":60.03},{"feature":"day_of_season","weight":59.88},{"feature":"fire_count_lag3","weight":36.08},{"feature":"fire_count_roll3","weight":22.21},{"feature":"avg_frp","weight":-8.11},{"feature":"max_frp","weight":-5.73},{"feature":"avg_frp_lag1","weight":-5.17},{"feature":"fire_count_lag1","weight":4.35} ...[trimmed]
+const HOTSPOTS = [{"latitude":3f 0.46,"longitude":74.79,"frp":2.5,"year":2022},{"latitude":29.74,"longitude":75.24,"frp":2.0,"year":2022},{"latitude":30.1,"longitude":75.7,"frp":6.7,"year":2022},{"latitude":30.28,"longitude":75.85,"frp":2.8,"year":2022},{"latitude":30.36,"longitude":74.7,"frp":23.8,"year":2022},{"latitude":30.19,"longitude":75.86,"frp":3.5,"year":2022},{"latitude":30.7,"longitude":7 ...[trimmed]
+const METRICS = {"Ridge":{"R2":0.481,"MAE":39.0,"RMSE":52.4},"RandomForest":{"R2":0.462,"MAE":41.1,"RMSE":53.3},"XGBoost":{"R2":0.415,"MAE":43.2,"RMSE":55.6}};
+
+// Raw (unscaled) Ridge model — trained on 2022-2024 — for the what-if simulator.
+// Assumes a "sustained burning" scenario: today's fire count held steady for the
+// past week (so lag1-3 and rolling sums are derived from the single slider value).
+const SIM_MODEL = {
+  intercept: 75.005,
+  coefs: {
+    fire_count: 0.08292,
+    avg_frp: -4.54357,
+    max_frp: -0.20740,
+    day_of_season: 3.64861,
+    fire_count_lag1: -0.01578,
+    fire_count_lag2: -0.03023,
+    fire_count_lag3: 0.06759,
+    avg_frp_lag1: -3.13052,
+    fire_count_roll3: 0.03691,
+    fire_count_roll7: -0.02406,
+    max_frp_roll3: 0.05051,
+  },
+  avgFrpTypical: 5.76,       // dataset average avg_frp, held constant across scenarios
+  maxFrpPerFire: 0.154,      // median max_frp / fire_count ratio, for scaling
+};
+function simulatePM25(fireCount, daySeason) {
+  const avgFrp = SIM_MODEL.avgFrpTypical;
+  const maxFrp = Math.min(fireCount * SIM_MODEL.maxFrpPerFire, 400);
+  const f = {
+    fire_count: fireCount,
+    avg_frp: avgFrp,
+    max_frp: maxFrp,
+    day_of_season: daySeason,
+    fire_count_lag1: fireCount,
+    fire_count_lag2: fireCount,
+    fire_count_lag3: fireCount,
+    avg_frp_lag1: avgFrp,
+    fire_count_roll3: fireCount * 3,
+    fire_count_roll7: fireCount * 7,
+    max_frp_roll3: maxFrp,
+  };
+  let pred = SIM_MODEL.intercept;
+  for (const [k, v] of Object.entries(SIM_MODEL.coefs)) pred += v * f[k];
+  return Math.max(0, pred);
+}
+
+const COLORS = {
+  canvas: '#12141A',
+  panel: '#1B1F27',
+  panel2: '#222834',
+  hair: '#2E3440',
+  ember: '#FF6A3D',
+  emberDeep: '#C43E1C',
+  emberDim: 'rgba(255,106,61,0.18)',
+  haze: '#5FA8C4',
+  hazeDim: 'rgba(95,168,196,0.18)',
+  text: '#EDE9E0',
+  textMute: '#8A8F99',
+  textDim: '#5C616B',
+  good: '#7FBF6F',
+  moderate: '#F2C94C',
+  poor: '#F2994A',
+  severe: '#EB5757',
+  hazardous: '#8C2F26',
+};
+
+const mono = "'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace";
+const sans = "'Inter', ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif";
+
+function aqiColor(pm25) {
+  if (pm25 <= 60) return COLORS.good;
+  if (pm25 <= 90) return COLORS.moderate;
+  if (pm25 <= 120) return COLORS.poor;
+  if (pm25 <= 250) return COLORS.severe;
+  return COLORS.hazardous;
+}
+function aqiLabel(pm25) {
+  if (pm25 <= 60) return 'Satisfactory';
+  if (pm25 <= 90) return 'Moderate';
+  if (pm25 <= 120) return 'Poor';
+  if (pm25 <= 250) return 'Very poor';
+  return 'Severe';
+}
+
+function Bracket({ children }) {
+  return (
+    <div style={{ position: 'relative', padding: '18px 20px' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: 18, height: 18, borderTop: `2px solid ${COLORS.ember}`, borderLeft: `2px solid ${COLORS.ember}` }} />
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 18, height: 18, borderTop: `2px solid ${COLORS.ember}`, borderRight: `2px solid ${COLORS.ember}` }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, width: 18, height: 18, borderBottom: `2px solid ${COLORS.ember}`, borderLeft: `2px solid ${COLORS.ember}` }} />
+      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderBottom: `2px solid ${COLORS.ember}`, borderRight: `2px solid ${COLORS.ember}` }} />
+      {children}
+    </div>
+  );
+}
+
+function KpiCard({ icon: Icon, label, value, sub, accent }) {
+  return (
+    <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '16px 18px', flex: '1 1 200px', minWidth: 180 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+        <Icon size={12} color={accent || COLORS.textMute} />
+        <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.07em', color: COLORS.textMute, textTransform: 'uppercase' }}>{label}</span>
+      </div>
+      <div style={{ fontFamily: mono, fontSize: 28, fontWeight: 600, color: COLORS.text, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontFamily: sans, fontSize: 11, color: COLORS.textDim, marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function SectionLabel({ eyebrow, title }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: '0.1em', color: COLORS.ember, textTransform: 'uppercase', marginBottom: 4 }}>{eyebrow}</div>
+      <div style={{ fontFamily: sans, fontSize: 18, fontWeight: 600, color: COLORS.text }}>{title}</div>
+    </div>
+  );
+}
+
+function CustomTooltip({ active, payload, label, formatter }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div style={{ background: COLORS.panel2, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '8px 12px', fontFamily: mono, fontSize: 12 }}>
+      <div style={{ color: COLORS.textMute, marginBottom: 4 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color || COLORS.text }}>
+          {p.name}: {formatter ? formatter(p.value, p.name) : p.value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const CARDS = [
+  { id: 'signal', label: 'Signal', icon: Radio, eyebrow: 'Signature finding', title: 'Smoke transport signal' },
+  { id: 'trends', label: 'Trends', icon: Activity, eyebrow: 'Season explorer', title: 'Fire activity and PM2.5 over time' },
+  { id: 'geo', label: 'Geography & model', icon: Map, eyebrow: 'Geography / Prediction', title: 'Fire hotspots & model accuracy' },
+  { id: 'drivers', label: 'Drivers', icon: BrainCircuit, eyebrow: 'Interpretability', title: 'What drives the prediction' },
+  { id: 'simulator', label: 'Simulator', icon: Gauge, eyebrow: 'What-if', title: 'Predict PM2.5 from fire activity' },
+  { id: 'log', label: 'Data log', icon: ClipboardList, eyebrow: 'Methodology', title: 'Data quality log' },
+];
+
+export default function StubbleDashboard() {
+  const [season, setSeason] = useState('all');
+  const [cardIdx, setCardIdx] = useState(0);
+  const [simFireCount, setSimFireCount] = useState(800);
+  const [simDay, setSimDay] = useState(30);
+  const activeCard = CARDS[cardIdx];
+  const goTo = (i) => setCardIdx(((i % CARDS.length) + CARDS.length) % CARDS.length);
+
+  const seasonData = useMemo(() => {
+    if (season === 'all') return DAILY;
+    return DAILY.filter(d => d.season === Number(season));
+  }, [season]);
+
+  const totalFires = useMemo(() => DAILY.reduce((s, d) => s + d.fire_count, 0), []);
+  const peakDay = useMemo(() => DAILY.reduce((a, b) => (b.avg_pm25 > a.avg_pm25 ? b : a), DAILY[0]), []);
+  const sameDayCorr = LAG_CORR[0].corr;
+  const bestLag = LAG_CORR.reduce((a, b) => (b.corr > a.corr ? b : a), LAG_CORR[0]);
+
+  const importanceSorted = [...IMPORTANCE].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
+
+  const seasons = [2022, 2023, 2024, 2025];
+  const hotspotFiltered = season === 'all' ? HOTSPOTS : HOTSPOTS.filter(h => h.year === Number(season));
+  const simPred = useMemo(() => simulatePM25(simFireCount, simDay), [simFireCount, simDay]);
+
+  return (
+    <div style={{ background: COLORS.canvas, minHeight: '100vh', padding: '32px 24px 64px', fontFamily: sans, color: COLORS.text }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 28, borderBottom: `1px solid ${COLORS.hair}`, paddingBottom: 20 }}>
+          <div>
+            <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.1em', color: COLORS.haze, textTransform: 'uppercase', marginBottom: 4 }}>
+              NASA FIRMS VIIRS &middot; OPENAQ PM2.5 &middot; PUNJAB / HARYANA &rarr; DELHI-NCR
+            </div>
+            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Stubble burning &rarr; Delhi smog</h1>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: mono, fontSize: 10, color: COLORS.good, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '4px 10px' }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: COLORS.good, display: 'inline-block' }} />
+            4 SEASONS &middot; OCT&ndash;NOV 2022&ndash;2025
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 36 }}>
+          <KpiCard icon={Flame} label="Fires detected" value={totalFires.toLocaleString()} sub="VIIRS NOAA-20, Oct-Nov, 4 seasons" accent={COLORS.ember} />
+          <KpiCard icon={AlertTriangle} label="Peak PM2.5 day" value={`${Math.round(peakDay.avg_pm25)}`} sub={`${peakDay.date} \u00b7 ${aqiLabel(peakDay.avg_pm25)}`} accent={aqiColor(peakDay.avg_pm25)} />
+          <KpiCard icon={Wind} label="Same-day signal" value={sameDayCorr.toFixed(2)} sub="Fire count vs Delhi PM2.5" accent={COLORS.haze} />
+          <KpiCard icon={TrendingUp} label={`Model R\u00b2 (held-out 2024)`} value={METRICS.Ridge.R2.toFixed(2)} sub="Ridge regression, out-of-season test" accent={COLORS.ember} />
+        </div>
+
+        {/* Card nav */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+          {CARDS.map((c, i) => {
+            const Icon = c.icon;
+            const active = i === cardIdx;
+            return (
+              <button key={c.id} onClick={() => goTo(i)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7, fontFamily: mono, fontSize: 12,
+                  padding: '8px 14px', borderRadius: 4, cursor: 'pointer',
+                  background: active ? COLORS.ember : COLORS.panel,
+                  color: active ? '#1A0D08' : COLORS.textMute,
+                  border: `1px solid ${active ? COLORS.ember : COLORS.hair}`,
+                  fontWeight: active ? 600 : 400,
+                }}>
+                <Icon size={13} />
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Card: Signal */}
+        {activeCard.id === 'signal' && (
+          <div style={{ marginBottom: 14 }}>
+            <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
+            <Bracket>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                <span style={{ fontFamily: mono, fontSize: 12, color: COLORS.textMute }}>HOW MANY DAYS AFTER A FIRE DOES DELHI'S PM2.5 RESPOND?</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: mono, fontSize: 12, color: COLORS.ember }}>
+                  <span style={{ width: 9, height: 9, background: COLORS.ember, display: 'inline-block', borderRadius: 2 }} />
+                  STRONGEST LINK: {bestLag.lag === 0 ? 'SAME DAY' : `+${bestLag.lag} DAY${bestLag.lag > 1 ? 'S' : ''}`}
+                </span>
+              </div>
+              <div style={{ fontFamily: sans, fontSize: 11, color: COLORS.textDim, marginBottom: 8 }}>
+                Each bar is the correlation between fire activity on a given day and Delhi's PM2.5 that many days later. Taller = stronger link.
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={LAG_CORR} margin={{ top: 10, right: 10, left: 10, bottom: 22 }}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={COLORS.hair} vertical={false} />
+                  <XAxis dataKey="lag" tickFormatter={v => v === 0 ? 'Same day' : `+${v}d`} tick={{ fill: COLORS.textMute, fontSize: 11, fontFamily: mono }} axisLine={{ stroke: COLORS.hair }} tickLine={false}>
+                    <Label value="DAYS AFTER THE FIRE" position="bottom" offset={4} style={{ fill: COLORS.textDim, fontFamily: mono, fontSize: 10, letterSpacing: '0.06em' }} />
+                  </XAxis>
+                  <YAxis tick={{ fill: COLORS.textMute, fontSize: 11, fontFamily: mono }} axisLine={false} tickLine={false} domain={[0, 0.6]}>
+                    <Label value="CORRELATION STRENGTH" angle={-90} position="insideLeft" offset={10} style={{ fill: COLORS.textDim, fontFamily: mono, fontSize: 10, letterSpacing: '0.06em', textAnchor: 'middle' }} />
+                  </YAxis>
+                  <Tooltip content={<CustomTooltip formatter={(v) => v.toFixed(3)} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                  <Bar dataKey="corr" name="Correlation" radius={[3, 3, 0, 0]}>
+                    {LAG_CORR.map((d, i) => (
+                      <Cell key={i} fill={d.lag === bestLag.lag ? COLORS.ember : COLORS.emberDim} stroke={d.lag === bestLag.lag ? COLORS.ember : 'transparent'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ fontFamily: sans, fontSize: 13, color: COLORS.textMute, marginTop: 10, lineHeight: 1.5 }}>
+                Correlation is strongest same-day and next-day, then decays &mdash; consistent with a roughly 12&ndash;36 hour smoke transport window from Punjab to Delhi under typical northwesterly winds.
+              </div>
+            </Bracket>
+          </div>
+        )}
+
+        {/* Card: Trends */}
+        {activeCard.id === 'trends' && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+              <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['all', ...seasons].map(s => (
+                  <button key={s} onClick={() => setSeason(String(s))}
+                    style={{
+                      fontFamily: mono, fontSize: 12, padding: '6px 14px', borderRadius: 4, cursor: 'pointer',
+                      background: season === String(s) ? COLORS.ember : 'transparent',
+                      color: season === String(s) ? '#1A0D08' : COLORS.textMute,
+                      border: `1px solid ${season === String(s) ? COLORS.ember : COLORS.hair}`,
+                      fontWeight: season === String(s) ? 600 : 400,
+                    }}>
+                    {s === 'all' ? 'ALL' : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <span style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute }}>FIRE COUNT (LEFT AXIS) &middot; PM2.5 (RIGHT AXIS)</span>
+                <div style={{ display: 'flex', gap: 14, fontFamily: mono, fontSize: 11, color: COLORS.textMute }}>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 10, background: COLORS.emberDim, border: `1px solid ${COLORS.ember}`, marginRight: 6, verticalAlign: 'middle' }} />FIRES</span>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 2, background: COLORS.haze, marginRight: 6, verticalAlign: 'middle' }} />PM2.5</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={seasonData} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fireGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={COLORS.ember} stopOpacity={0.45} />
+                      <stop offset="100%" stopColor={COLORS.ember} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke={COLORS.hair} vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: COLORS.textMute, fontSize: 9, fontFamily: mono }} axisLine={{ stroke: COLORS.hair }} tickLine={false}
+                    interval={Math.max(Math.floor(seasonData.length / 8), 0)} />
+                  <YAxis yAxisId="fire" tick={{ fill: COLORS.ember, fontSize: 10, fontFamily: mono }} axisLine={false} tickLine={false} width={36} />
+                  <YAxis yAxisId="pm25" orientation="right" tick={{ fill: COLORS.haze, fontSize: 10, fontFamily: mono }} axisLine={false} tickLine={false} width={36} />
+                  <ReferenceLine yAxisId="pm25" y={250} stroke={COLORS.hazardous} strokeDasharray="3 3" strokeOpacity={0.6} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area yAxisId="fire" type="monotone" dataKey="fire_count" name="Fires" stroke={COLORS.ember} fill="url(#fireGrad)" strokeWidth={1.5} />
+                  <Line yAxisId="pm25" type="monotone" dataKey="avg_pm25" name="PM2.5" stroke={COLORS.haze} strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div style={{ fontFamily: sans, fontSize: 11, color: COLORS.textDim, marginTop: 6 }}>Dashed line marks the CPCB &ldquo;severe&rdquo; PM2.5 threshold (250 &micro;g/m&sup3;). Axes are independently scaled &mdash; watch for shape alignment, not absolute overlap.</div>
+            </div>
+          </div>
+        )}
+
+        {/* Card: Geography & Model */}
+        {activeCard.id === 'geo' && (
+          <div style={{ marginBottom: 14 }}>
+            <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,0.9fr)', gap: 20 }}>
+              <div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, marginBottom: 8 }}>FIRE HOTSPOTS &middot; PUNJAB / HARYANA</div>
+                <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px', position: 'relative' }}>
+                  {/* Compass tags instead of traditional axis titles */}
+                  <span style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', fontFamily: mono, fontSize: 10, letterSpacing: '0.15em', color: COLORS.textDim }}>N</span>
+                  <span style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', fontFamily: mono, fontSize: 10, letterSpacing: '0.15em', color: COLORS.textDim }}>S</span>
+                  <span style={{ position: 'absolute', left: 6, top: '46%', transform: 'translateY(-50%)', fontFamily: mono, fontSize: 10, letterSpacing: '0.15em', color: COLORS.textDim }}>W</span>
+                  <span style={{ position: 'absolute', right: 8, top: '46%', transform: 'translateY(-50%)', fontFamily: mono, fontSize: 10, letterSpacing: '0.15em', color: COLORS.textDim }}>E</span>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ScatterChart margin={{ top: 20, right: 24, left: 12, bottom: 10 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke={COLORS.hair} />
+                      <XAxis type="number" dataKey="longitude" domain={[74.3, 76.2]} tick={{ fill: COLORS.textMute, fontSize: 10, fontFamily: mono }} axisLine={{ stroke: COLORS.hair }} tickLine={false} name="Longitude" unit="°E" />
+                      <YAxis type="number" dataKey="latitude" domain={[28.9, 31.6]} tick={{ fill: COLORS.textMute, fontSize: 10, fontFamily: mono }} axisLine={false} tickLine={false} name="Latitude" width={44} unit="°N" />
+                      <Tooltip content={<CustomTooltip formatter={(v, n) => (typeof v === 'number' ? v.toFixed(2) : v)} />} cursor={{ strokeDasharray: '3 3', stroke: COLORS.hair }} />
+                      <Scatter data={hotspotFiltered} fill={COLORS.ember}>
+                        {hotspotFiltered.map((d, i) => (
+                          <Cell key={i} fill={d.frp > 15 ? COLORS.emberDeep : COLORS.emberDim} r={d.frp > 15 ? 2.2 : 1.4} />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: 'flex', gap: 16, marginTop: 8, fontFamily: mono, fontSize: 11, color: COLORS.textMute }}>
+                    <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: COLORS.emberDeep, marginRight: 6 }} />HIGH FRP (&gt;15MW)</span>
+                    <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: COLORS.emberDim, marginRight: 6 }} />LOW FRP</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, marginBottom: 8 }}>HELD-OUT 2025 SEASON &middot; RIDGE MODEL</div>
+                <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px' }}>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={TEST_PREDS} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke={COLORS.hair} vertical={false} />
+                      <XAxis dataKey="date" tick={false} axisLine={{ stroke: COLORS.hair }} />
+                      <YAxis tick={{ fill: COLORS.textMute, fontSize: 10, fontFamily: mono }} axisLine={false} tickLine={false} width={30} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Line type="monotone" dataKey="avg_pm25" name="Actual" stroke={COLORS.text} strokeWidth={1.5} dot={false} />
+                      <Line type="monotone" dataKey="pred_ridge" name="Predicted" stroke={COLORS.ember} strokeWidth={1.8} strokeDasharray="4 3" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: 'flex', gap: 16, marginTop: 8, fontFamily: mono, fontSize: 11, color: COLORS.textMute }}>
+                    <span><span style={{ display: 'inline-block', width: 12, height: 2, background: COLORS.text, marginRight: 6, verticalAlign: 'middle' }} />ACTUAL</span>
+                    <span><span style={{ display: 'inline-block', width: 12, height: 2, background: COLORS.ember, marginRight: 6, verticalAlign: 'middle' }} />PREDICTED</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Card: Drivers */}
+        {activeCard.id === 'drivers' && (
+          <div style={{ marginBottom: 14 }}>
+            <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
+            <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px' }}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={importanceSorted} layout="vertical" margin={{ top: 4, right: 30, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={COLORS.hair} horizontal={false} />
+                  <XAxis type="number" tick={{ fill: COLORS.textMute, fontSize: 10, fontFamily: mono }} axisLine={{ stroke: COLORS.hair }} tickLine={false} />
+                  <YAxis type="category" dataKey="feature" tick={{ fill: COLORS.textMute, fontSize: 11, fontFamily: mono }} axisLine={false} tickLine={false} width={130} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                  <ReferenceLine x={0} stroke={COLORS.hair} />
+                  <Bar dataKey="weight" name="Weight" radius={[0, 3, 3, 0]}>
+                    {importanceSorted.map((d, i) => (
+                      <Cell key={i} fill={d.weight >= 0 ? COLORS.ember : COLORS.haze} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ fontFamily: sans, fontSize: 13, color: COLORS.textMute, marginTop: 10, lineHeight: 1.5 }}>
+                Standardized Ridge coefficients. Ember bars push PM2.5 up, haze bars pull it down. Cumulative 7-day fire activity dampens the raw same-day spike &mdash; the model reads sustained burning differently from a single large day.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Card: Simulator */}
+        {activeCard.id === 'simulator' && (
+          <div style={{ marginBottom: 20 }}>
+            <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,0.8fr)', gap: 20 }}>
+              <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px' }}>
+                <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, marginBottom: 16 }}>SCENARIO: SUSTAINED BURNING</div>
+
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontFamily: sans, fontSize: 13, color: COLORS.text }}>Fires per day in Punjab/Haryana</span>
+                    <span style={{ fontFamily: mono, fontSize: 14, color: COLORS.ember, fontWeight: 600 }}>{simFireCount.toLocaleString()}</span>
+                  </div>
+                  <input type="range" min={0} max={3000} step={50} value={simFireCount}
+                    onChange={e => setSimFireCount(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: COLORS.ember }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: mono, fontSize: 10, color: COLORS.textDim, marginTop: 4 }}>
+                    <span>0 (none)</span>
+                    <span>3,000 (extreme)</span>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontFamily: sans, fontSize: 13, color: COLORS.text }}>Point in the burning season</span>
+                    <span style={{ fontFamily: mono, fontSize: 14, color: COLORS.haze, fontWeight: 600 }}>Day {simDay}</span>
+                  </div>
+                  <input type="range" min={0} max={60} step={1} value={simDay}
+                    onChange={e => setSimDay(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: COLORS.haze }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: mono, fontSize: 10, color: COLORS.textDim, marginTop: 4 }}>
+                    <span>Oct 1 (season start)</span>
+                    <span>Nov 30 (season end)</span>
+                  </div>
+                </div>
+
+                <div style={{ fontFamily: sans, fontSize: 11, color: COLORS.textDim, marginTop: 16, lineHeight: 1.5, borderTop: `1px solid ${COLORS.hair}`, paddingTop: 12 }}>
+                  Assumes this fire level has held steady for about a week &mdash; the trained model uses cumulative 3-day and 7-day fire activity, not just a single day's count, so a one-off spike predicts differently than sustained burning.
+                </div>
+              </div>
+
+              <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, marginBottom: 10, letterSpacing: '0.08em' }}>PREDICTED DELHI-NCR PM2.5</div>
+                <div style={{ fontFamily: mono, fontSize: 56, fontWeight: 700, color: aqiColor(simPred), lineHeight: 1 }}>{Math.round(simPred)}</div>
+                <div style={{ fontFamily: sans, fontSize: 14, color: aqiColor(simPred), fontWeight: 600, marginTop: 8 }}>{aqiLabel(simPred)}</div>
+                <div style={{ width: '100%', height: 6, background: COLORS.hair, borderRadius: 3, marginTop: 18, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.min(simPred / 500, 1) * 100}%`, background: aqiColor(simPred), borderRadius: 3 }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontFamily: mono, fontSize: 9, color: COLORS.textDim, marginTop: 4 }}>
+                  <span>0</span><span>250 (severe)</span><span>500+</span>
+                </div>
+                <div style={{ fontFamily: sans, fontSize: 11, color: COLORS.textDim, marginTop: 20, lineHeight: 1.5 }}>
+                  Based on the trained Ridge model (R&sup2;=0.48, tested on the held-out 2025 season). A simplified, illustrative scenario &mdash; not a substitute for the full model.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Card: Data log */}
+        {activeCard.id === 'log' && (
+          <div style={{ marginBottom: 14 }}>
+            <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
+            <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.hair}`, borderRadius: 4, padding: '18px 20px' }}>
+              <div style={{ fontFamily: mono, fontSize: 12, color: COLORS.textDim, lineHeight: 2.1, wordBreak: 'break-word' }}>
+                <div><span style={{ color: COLORS.ember }}>[dedup]</span> fire_archive_J1V-C2_785706 / 785707 (2024) were byte-identical &mdash; merged to one.</div>
+                <div><span style={{ color: COLORS.ember }}>[flag]</span> raw 2024 FIRMS export was truncated to ~50% of expected rows; corrected via cross-validated counts (verified 2x match).</div>
+                <div><span style={{ color: COLORS.ember }}>[verified]</span> 2025 fire count (3,430) is ~4&times; lower than 2024 &mdash; confirmed real via independent PPCB reporting of a 54% YoY drop in Punjab stubble fires, not a data gap.</div>
+                <div><span style={{ color: COLORS.ember }}>[method]</span> train: 2022&ndash;2024 &middot; test: 2025 (future season held out, no leakage) &middot; features: same-day + lag(1&ndash;3) + rolling(3,7) fire activity</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}

@@ -9,6 +9,10 @@ numbers instead of received wisdom.
 
 ---
 
+**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. This approximately covers central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
+
+---
+
 ## Findings
 
 **Data:** NASA FIRMS VIIRS (NOAA-20) fire detections over Punjab/Haryana,

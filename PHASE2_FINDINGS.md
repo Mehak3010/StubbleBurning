@@ -2,7 +2,11 @@
 
 **Question (unchanged):** Does Punjab/Haryana crop-residue burning predict Delhi-NCR's daily PM2.5?
 
-Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found and published first. Phase 2 re-audited the pipeline, found two data bugs that affected Phase 1's headline numbers, added weather data, and re-tested the question with stricter methods. **Where the two documents disagree, this one is current.**
+**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. This approximately covers central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
+
+Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found and published first. Phase 2 re-audited the pipeline, added weather data, and re-tested the question with stricter methods. **Where the two documents disagree, this one is current.**
+
+- **Partial regional coverage.** The fire box omits parts of the burning region. If the geographic mix of burning shifted between years, counts could understate those shifts. Re-running with full-region coverage is a Phase 3 item.
 
 ---
 
@@ -95,6 +99,8 @@ Each season's quadratic Oct-Nov trend was removed from log PM2.5, fire activity 
 | 2023 | 457 | 172.8 | 146.0 |
 | 2024 | 144 | 189.2 | 181.0 |
 | 2025 | 62 | 168.7 | 175.1 |
+
+These figures use the 55 days per season left after lag features are built; the dashboard's Seasons tab averages all 61 days (fires/day 595, 416, 131, 56; mean PM2.5 132.7, 161.8, 175.8, 156.9). The ordering is the same.
 
 The season with the most fires had the lowest mean PM2.5. With four seasons this is not proof, but it does not support "more fires, worse smog" at the season level.
 
