@@ -27,7 +27,7 @@ Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found 
 | Two identical 2024 FIRMS files (`fire_archive_J1V-C2_785706.csv` and `..._785707.csv`) were both loaded and concatenated | 2024 fire counts were double-counted (7,997 duplicate detections) | De-duplicate on latitude, longitude, date and time |
 | `master_dashboard_data.csv` contained **no 2025 fire data** (all 61 days NaN), and the model script filled missing fires with 0 | At the time of the audit, 2025 fire columns were empty in the master table, and the model script fills missing fires with 0, which would turn a missing season into zero fires. Whether the master was already in this state when the original Phase 1 figures were produced is unconfirmed (the model script's notes cite 2,942 detections for 2025) | Rebuilt fire columns with `refresh_fires.py`; added guards that stop the pipeline if a season has missing or zero fires |
 
-Corrected detections (NOAA-20 VIIRS, Oct-Nov, Punjab/Haryana):
+Corrected detections (NOAA-20 VIIRS, Oct-Nov, study box):
 
 | Season | Detections |
 |---|---|
@@ -36,7 +36,7 @@ Corrected detections (NOAA-20 VIIRS, Oct-Nov, Punjab/Haryana):
 | 2024 | 7,997 |
 | 2025 | 3,430 |
 
-The 2025 vs 2024 drop is about 57%, consistent with the roughly 54% reduction reported by the Punjab Pollution Control Board.
+The 2025 vs 2024 drop is about 57%, consistent with the roughly 54% reduction reported by the Punjab Pollution Control Board (a statewide figure; ours covers only the study box).
 
 ---
 
@@ -142,6 +142,7 @@ Weather explains more day-to-day variation than fires do. Adding fires to weathe
 
 ## 7. Limitations
 
+- **Partial regional coverage.** The fire box omits parts of the burning region. If the geographic mix of burning shifted between years, counts could understate those shifts. Re-running with full-region coverage is a Phase 3 item.
 - **Four seasons, about 220 usable days.** Results are sensitive to individual years.
 - **Detection undercount is possible.** NOAA-20 crosses over in the early afternoon; if a large share of burning happens later in the day, daily counts understate activity, and that share may vary by year. This is a hypothesis to verify against the literature, not something shown here.
 - **Counts ignore location and size.** A count does not capture distance to Delhi, fire size, or whether the wind carried smoke toward the city. FRP was available but only used in early versions.
@@ -169,6 +170,7 @@ Raw and processed datasets remain excluded from the repository under the origina
 
 ## 9. Suggested Phase 3
 
+- Re-download FIRMS for a wider box (about 73.8–77.6°E, 28.3–32.6°N) and re-run the full pipeline to test whether the conclusions change.
 - Weight fires by distance and upwind direction; sum FRP instead of counting detections.
 - Back-trajectory modeling (for example HYSPLIT) to estimate smoke arrival at Delhi.
 - Station-level or hourly PM2.5 instead of a citywide daily mean.

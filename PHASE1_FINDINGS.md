@@ -1,6 +1,6 @@
 # Phase 1: Does Punjab Stubble Burning Predict Delhi's PM2.5?
 
-**Data:** NASA FIRMS VIIRS (NOAA-20) fire detections over Punjab/Haryana, Oct–Nov **2022–2025** (4 seasons), merged with Delhi-NCR daily PM2.5 (OpenAQ). 244 daily records after cleaning.
+**Data:** NASA FIRMS VIIRS (NOAA-20) fire detections over the study area, Oct–Nov **2022–2025** (4 seasons), merged with Delhi-NCR daily PM2.5 (OpenAQ). 244 daily records after cleaning.
 
 **Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. This approximately covers central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
 
@@ -17,7 +17,7 @@
   | 2024 | 7,997 |
   | **2025** | **3,430** |
 
-  That is a 57% drop vs. 2024 and a 91% drop vs. 2022. It is consistent with independently reported figures: Punjab's Pollution Control Board recorded a **54% drop** in stubble fire cases in 2025 vs. 2024 (5,114 vs. 10,909), and the Union Environment Ministry reported a **90% reduction** vs. 2022, attributed to CRM (crop residue management) machinery subsidies (₹3,120+ crore disbursed since 2018) and stricter enforcement.
+  That is a 57% drop vs. 2024 and a 91% drop vs. 2022. It is broadly consistent with independently reported statewide figures (which cover all of Punjab, not just the study box): Punjab's Pollution Control Board recorded a **54% drop** in stubble fire cases in 2025 vs. 2024 (5,114 vs. 10,909), and the Union Environment Ministry reported a **90% reduction** vs. 2022, attributed to CRM (crop residue management) machinery subsidies (₹3,120+ crore disbursed since 2018) and stricter enforcement.
 
 ## Key finding: fire activity and smog move together over following days
 
