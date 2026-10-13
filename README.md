@@ -15,7 +15,7 @@ numbers instead of received wisdom.
 
 ## Findings
 
-**Data:** NASA FIRMS VIIRS (NOAA-20) fire detections over Punjab/Haryana,
+**Data:** NASA FIRMS VIIRS (NOAA-20) fire detections over the study area,
 Oct–Nov **2022–2025** (4 seasons), merged with Delhi-NCR daily PM2.5 (OpenAQ).
 244 daily records after cleaning.
 
@@ -42,8 +42,7 @@ features, so the R² reflects the seasonal rise in PM2.5 as well as fire activit
 
 **2025's fire count genuinely collapsed**: 3,430 detections vs. 36,310 in
 2022 (about 10x fewer), corroborated by independently reported Punjab Pollution
-Control Board figures (a 54% drop vs. 2024), not a data gap. Delhi's 2025 smog
-was not lower for it, which is why weather and other sources matter.
+Control Board figures (a 54% drop vs. 2024), not a data gap. Delhi's 2025 smog was not lower than 2022's, which is why weather and other sources matter.
 
 **Phase 2 adds weather** (wind, temperature, humidity, boundary layer height)
 and re-tests the question with stricter methods. See
@@ -71,7 +70,7 @@ and re-tests the question with stricter methods. See
 ## Data sources
 
 - **Fire detections:** [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) VIIRS,
-  NOAA-20/JPSS-1 (J1V), Punjab & Haryana, Oct–Nov 2022–2025
+  NOAA-20/JPSS-1 (J1V), study box 74.5–76.0°E / 29.0–31.5°N, Oct–Nov 2022–2025
 - **Air quality:** [OpenAQ](https://openaq.org/) v3 API, Delhi-NCR PM2.5 sensors
 - **Weather (Phase 2):** [Open-Meteo](https://open-meteo.com/) historical archive
 
