@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, LineChart, Line, Area, ComposedChart, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Label, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import { Flame, Wind, Activity, TrendingUp, AlertTriangle, Radio, Map, BrainCircuit, ClipboardList, Gauge } from 'lucide-react';
-import { DAILY, HOTSPOTS } from './data';
+import { DAILY, GRID } from './data';
+import { STATES } from './geo';
 
 // Fire -> PM2.5 lag correlations (Phase 1 method, corrected data; from stubble_pm25_model.py)
 const LAG_CORR = [
@@ -43,13 +44,45 @@ const WEATHER_VARS = [
 ].filter(v => DAILY.some(d => d[v.key] != null));
 
 const SEASONS = [2022, 2023, 2024, 2025];
-const DELHI = [{ longitude: 77.21, latitude: 28.61 }];
-const _lons = [...HOTSPOTS.map(h => h.longitude), DELHI[0].longitude];
-const _lats = [...HOTSPOTS.map(h => h.latitude), DELHI[0].latitude];
-const GEO = {
-  lon: [Math.floor(Math.min(..._lons) - 0.2), Math.ceil(Math.max(..._lons) + 0.2)],
-  lat: [Math.floor(Math.min(..._lats) - 0.2), Math.ceil(Math.max(..._lats) + 0.2)],
-};
+const DELHI = { name: 'Delhi', lon: 77.21, lat: 28.61 };
+const BOX = { lon0: 74.5, lon1: 76.0, lat0: 29.0, lat1: 31.5 };
+const MAP = { lon0: 73.8, lon1: 77.6, lat0: 28.3, lat1: 32.0 };
+const MAP_K = 150;                                        // px per degree of latitude
+const MAP_KX = Math.cos((30 * Math.PI) / 180) * MAP_K;    // aspect-corrected px per degree of longitude
+const mapX = (lon) => (lon - MAP.lon0) * MAP_KX;
+const mapY = (lat) => (MAP.lat1 - lat) * MAP_K;
+const MAP_W = (MAP.lon1 - MAP.lon0) * MAP_KX;
+const MAP_H = (MAP.lat1 - MAP.lat0) * MAP_K;
+const ringPath = (ring) => ring.map(([lon, lat], i) => `${i ? 'L' : 'M'}${mapX(lon).toFixed(1)},${mapY(lat).toFixed(1)}`).join('') + 'Z';
+const statePath = (s) => s.rings.map(ringPath).join('');
+const STATE_LABELS = [
+  { t: 'PUNJAB', lon: 76.08, lat: 31.2, focus: true },
+  { t: 'HARYANA', lon: 76.25, lat: 29.3, focus: true },
+  { t: 'RAJASTHAN', lon: 73.85, lat: 28.6, focus: false },
+  { t: 'HIMACHAL', lon: 76.7, lat: 31.9, focus: false },
+  { t: 'PAKISTAN', lon: 73.85, lat: 31.3, focus: false },
+];
+const CITIES = [
+  { name: 'Ferozepur', lon: 74.61, lat: 30.92, inside: true },
+  { name: 'Bathinda', lon: 74.95, lat: 30.21, inside: true },
+  { name: 'Ludhiana', lon: 75.85, lat: 30.90, inside: true },
+  { name: 'Sangrur', lon: 75.84, lat: 30.25, inside: true },
+  { name: 'Sirsa', lon: 75.02, lat: 29.53, inside: true },
+  { name: 'Hisar', lon: 75.72, lat: 29.15, inside: true },
+  { name: 'Amritsar', lon: 74.87, lat: 31.63, inside: false },
+  { name: 'Chandigarh', lon: 76.78, lat: 30.73, inside: false },
+  { name: 'Karnal', lon: 76.99, lat: 29.69, inside: false },
+];
+
+function MapLabel({ x, y, children, fill, size = 11, anchor = 'start', weight = 400 }) {
+  const common = { x, y, fontSize: size, fontFamily: mono, fontWeight: weight, textAnchor: anchor };
+  return (
+    <g>
+      <text {...common} fill="none" stroke={COLORS.canvas} strokeWidth="3.5" strokeLinejoin="round">{children}</text>
+      <text {...common} fill={fill}>{children}</text>
+    </g>
+  );
+}
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
 
 const SEASON_STATS = SEASONS.map((y) => {
@@ -170,10 +203,21 @@ export default function StubbleDashboard() {
     () => (season === 'all' ? DAILY : DAILY.filter(d => d.season === Number(season))),
     [season]
   );
-  const hotspotFiltered = useMemo(
-    () => (season === 'all' ? HOTSPOTS : HOTSPOTS.filter(h => h.year === Number(season))),
-    [season]
-  );
+  const gridCells = useMemo(() => {
+    // plain object, not Map: 'Map' is the lucide icon imported at the top of this file
+    const acc = {};
+    for (const [yr, lon, lat, n] of GRID) {
+      if (season !== 'all' && yr !== Number(season)) continue;
+      const k = `${lon}|${lat}`;
+      acc[k] = (acc[k] || 0) + n;
+    }
+    return Object.entries(acc).map(([k, n]) => {
+      const [lon, lat] = k.split('|').map(Number);
+      return { lon, lat, n };
+    });
+  }, [season]);
+  const gridMax = useMemo(() => Math.max(1, ...gridCells.map(c => c.n)), [gridCells]);
+  const gridTotal = useMemo(() => gridCells.reduce((s, c) => s + c.n, 0), [gridCells]);
   const scatterBySeason = useMemo(
     () => SEASONS.map(y => ({
       year: y,
@@ -385,21 +429,65 @@ export default function StubbleDashboard() {
               <SectionLabel eyebrow={activeCard.eyebrow} title={activeCard.title} />
               <SeasonButtons season={season} setSeason={setSeason} />
             </div>
-            <div style={{ ...panel, position: 'relative' }}>
-              <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, marginBottom: 8 }}>SAMPLE OF NOAA-20 DETECTIONS &middot; DARKER = HIGHER FIRE POWER</div>
-              <ResponsiveContainer width="100%" height={380}>
-                <ScatterChart margin={{ top: 10, right: 24, left: 12, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={COLORS.hair} />
-                  <XAxis type="number" dataKey="longitude" domain={GEO.lon} tick={{ fill: COLORS.textMute, fontSize: 10, fontFamily: mono }} axisLine={{ stroke: COLORS.hair }} tickLine={false} name="Longitude" unit="°E" />
-                  <YAxis type="number" dataKey="latitude" domain={GEO.lat} tick={{ fill: COLORS.textMute, fontSize: 10, fontFamily: mono }} axisLine={false} tickLine={false} name="Latitude" width={44} unit="°N" />
-                  <Tooltip content={<CustomTooltip formatter={(v) => (typeof v === 'number' ? v.toFixed(2) : v)} />} cursor={{ strokeDasharray: '3 3', stroke: COLORS.hair }} />
-                  <Scatter data={hotspotFiltered} fill={COLORS.ember}>
-                    {hotspotFiltered.map((d, i) => <Cell key={i} fill={d.frp > 15 ? COLORS.emberDeep : COLORS.emberDim} />)}
-                  </Scatter>
-                  <Scatter data={DELHI} name="Delhi" fill={COLORS.haze} />
-                </ScatterChart>
-              </ResponsiveContainer>
-              <Note>A random sample of detections per season, for display. High FRP means &gt; 15 MW. The blue dot is Delhi. The study box (74.5&ndash;76.0&deg;E, 29.0&ndash;31.5&deg;N) covers much of central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it.</Note>
+            <div style={{ ...panel, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 28, alignItems: 'center' }}>
+              <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} role="img" aria-label="Density map of fire detections in the study box"
+                style={{ width: '100%', maxWidth: 520, height: 'auto', margin: '0 auto', display: 'block', background: COLORS.canvas, border: `1px solid ${COLORS.hair}`, borderRadius: 4 }}>
+                {STATES.filter(s => s.kind === 'context').map(s => (
+                  <path key={s.name} d={statePath(s)} fill={COLORS.panel} stroke={COLORS.hair} strokeWidth="1" />
+                ))}
+                {STATES.filter(s => s.kind === 'focus').map(s => (
+                  <path key={s.name} d={statePath(s)} fill={COLORS.panel2} stroke={COLORS.textDim} strokeWidth="1.2" />
+                ))}
+                {[75, 76, 77].map(l => (
+                  <g key={`lon${l}`}>
+                    <line x1={mapX(l)} x2={mapX(l)} y1={0} y2={MAP_H} stroke={COLORS.hair} strokeDasharray="2 5" />
+                    <text x={mapX(l) + 4} y={MAP_H - 6} fontSize="11" fontFamily={mono} fill={COLORS.textDim}>{l}&deg;E</text>
+                  </g>
+                ))}
+                {[29, 30, 31].map(l => (
+                  <g key={`lat${l}`}>
+                    <line x1={0} x2={MAP_W} y1={mapY(l)} y2={mapY(l)} stroke={COLORS.hair} strokeDasharray="2 5" />
+                    <text x={6} y={mapY(l) - 5} fontSize="11" fontFamily={mono} fill={COLORS.textDim}>{l}&deg;N</text>
+                  </g>
+                ))}
+                {gridCells.map(c => {
+                  const t = Math.sqrt(c.n / gridMax);
+                  return (
+                    <rect key={`${c.lon}|${c.lat}`} x={mapX(c.lon)} y={mapY(c.lat + 0.1)} width={MAP_KX * 0.1 + 0.4} height={MAP_K * 0.1 + 0.4}
+                      fill={COLORS.ember} fillOpacity={0.1 + 0.9 * t}>
+                      <title>{`${c.n.toLocaleString()} detections`}</title>
+                    </rect>
+                  );
+                })}
+                <rect x={mapX(BOX.lon0)} y={mapY(BOX.lat1)} width={mapX(BOX.lon1) - mapX(BOX.lon0)} height={mapY(BOX.lat0) - mapY(BOX.lat1)}
+                  fill="none" stroke={COLORS.ember} strokeWidth="1.5" strokeDasharray="6 4" />
+                <text x={mapX(BOX.lon0)} y={mapY(BOX.lat1) - 8} fontSize="11" fontFamily={mono} fill={COLORS.ember} letterSpacing="1">STUDY BOX</text>
+                {STATE_LABELS.map(l => (
+                  <MapLabel key={l.t} x={mapX(l.lon)} y={mapY(l.lat)} size={12} weight={600} fill={l.focus ? COLORS.textMute : COLORS.textDim}>{l.t}</MapLabel>
+                ))}
+                {CITIES.map(c => (
+                  <g key={c.name}>
+                    <circle cx={mapX(c.lon)} cy={mapY(c.lat)} r="3.5" fill={c.inside ? COLORS.text : COLORS.textMute} fillOpacity={c.inside ? 1 : 0.6} stroke={COLORS.canvas} strokeWidth="1" />
+                    <MapLabel x={mapX(c.lon) + 7} y={mapY(c.lat) + 4} fill={c.inside ? COLORS.text : COLORS.textMute}>{c.name}</MapLabel>
+                  </g>
+                ))}
+                <circle cx={mapX(DELHI.lon)} cy={mapY(DELHI.lat)} r="6" fill={COLORS.haze} stroke={COLORS.canvas} strokeWidth="1.5" />
+                <MapLabel x={mapX(DELHI.lon) - 10} y={mapY(DELHI.lat) + 4} anchor="end" size={12} weight={700} fill={COLORS.haze}>Delhi</MapLabel>
+              </svg>
+
+              <div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, letterSpacing: '0.06em', marginBottom: 8 }}>NOAA-20 DETECTIONS PER 0.1&deg; CELL (ABOUT 10 KM)</div>
+                <div style={{ height: 10, borderRadius: 2, background: `linear-gradient(to right, rgba(255,106,61,0.1), ${COLORS.ember})`, border: `1px solid ${COLORS.hair}` }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: mono, fontSize: 10, color: COLORS.textDim, marginTop: 4 }}>
+                  <span>0</span><span>{gridMax.toLocaleString()}</span>
+                </div>
+                <div style={{ fontFamily: sans, fontSize: 11, color: COLORS.textDim, marginTop: 6 }}>Colour is scaled to the busiest cell in the selected season(s).</div>
+                <div style={{ marginTop: 20, fontFamily: mono, fontSize: 12, color: COLORS.textMute, lineHeight: 1.9 }}>
+                  <div><span style={{ color: COLORS.ember }}>BOX</span> 74.5&ndash;76.0&deg;E, 29.0&ndash;31.5&deg;N</div>
+                  <div><span style={{ color: COLORS.ember }}>SHOWN</span> {gridTotal.toLocaleString()} detections</div>
+                </div>
+                <Note>By area, the study box is roughly two-thirds Punjab, a quarter Haryana and about 9% north-west Rajasthan. Northern Punjab (Amritsar) and eastern Haryana (Karnal) lie outside it, so counts understate regional burning. Bright city labels are inside the box, dim ones outside. State outlines: Natural Earth.</Note>
+              </div>
             </div>
           </div>
         )}
