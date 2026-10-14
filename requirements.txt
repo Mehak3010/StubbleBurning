@@ -1,0 +1,17 @@
+# Core data + modelling
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+xgboost>=2.0
+scipy>=1.10
+
+# Data fetching (OpenAQ, Open-Meteo)
+requests>=2.31
+
+# Plotting / diagnostics (used if any script draws charts)
+matplotlib>=3.7
+
+# Optional: only needed if your scripts read/write these formats
+# openpyxl>=3.1     # .xlsx files
+# pyarrow>=14.0     # parquet files
+# statsmodels>=0.14 # only if you add regression diagnostics
