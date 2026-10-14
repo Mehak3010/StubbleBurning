@@ -9,7 +9,7 @@ numbers instead of received wisdom.
 
 ---
 
-**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. This approximately covers central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
+**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. By area it is roughly two-thirds Punjab, a quarter Haryana and 9% north-west Rajasthan, covering much of central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
 
 ---
 
@@ -51,6 +51,18 @@ and re-tests the question with stricter methods. See
 
 ---
 
+## Phase 2 at a glance
+
+- **Season explains a lot.** A calendar-only model (day of season, Diwali window, weekend) reaches R² of about 0.50 on the same held-out 2025 test; much of the Phase 1 score is the Oct–Nov rise in PM2.5.
+- **Fire counts add a modest, fragile signal.** On top of weather they lift leave-one-season-out R² by about +0.08. The gain varies by season and by modeling choice (see section 6b of `PHASE2_FINDINGS.md`).
+- **Weather matters.** Within a season, weather anomalies explain more of the day-to-day swings than fire counts do in the main setup (R² 0.13 vs about 0), though this comparison is sensitive to how the seasonal ramp is removed.
+- **Fewer fires, not less smog.** 2025 had about 91% fewer detections than 2022 (3,430 vs 36,310), yet season-average PM2.5 was higher (157 vs 133 µg/m³).
+- **Not established:** what share of Delhi's smog stubble burning accounts for. Daily satellite counts in a fixed box and a citywide PM2.5 average cannot settle that.
+
+`python final_checks.py` re-computes every number quoted in the docs and dashboard.
+
+---
+
 ## What's in here
 
 ```
@@ -64,6 +76,8 @@ and re-tests the question with stricter methods. See
 ├── merge_weather.py            # Phase 2: merges weather into the master table
 ├── stubble_pm25_phase2_v2.py   # Phase 2: ablation, leave-one-season-out CV
 ├── stubble_pm25_phase2_v3.py   # Phase 2: within-season anomalies, block bootstrap
+├── export_dashboard_data.py    # Builds dashboard/src/data.js from the corrected master table
+├── final_checks.py             # Re-checks every quoted number; robustness variants
 └── dashboard/                  # React dashboard (data embedded at build time)
 ```
 
@@ -94,6 +108,8 @@ python fetch_weather.py              # Open-Meteo, no key needed
 python merge_weather.py              # -> master_with_weather.csv
 python stubble_pm25_phase2_v2.py
 python stubble_pm25_phase2_v3.py
+python final_checks.py              # re-checks quoted numbers, runs robustness variants
+python export_dashboard_data.py      # writes dashboard/src/data.js for the dashboard
 ```
 
 ## Running the dashboard
@@ -116,6 +132,15 @@ npm run dev
   rise in PM2.5 as well as fire activity. Phase 2 separates the two.
 
 ---
+
+## Acknowledgments and data attribution
+
+- **Fire detections:** we acknowledge the use of data from NASA's Fire Information for Resource Management System (FIRMS, https://earthdata.nasa.gov/firms), part of NASA's Earth Science Data and Information System (ESDIS).
+- **Air quality:** [OpenAQ](https://openaq.org/).
+- **Weather:** [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
+- **State boundaries (dashboard map):** [Natural Earth](https://www.naturalearthdata.com/) (public domain).
+
+Please check each provider's current terms before reusing their data.
 
 *See [`PHASE1_FINDINGS.md`](PHASE1_FINDINGS.md) and
 [`PHASE2_FINDINGS.md`](PHASE2_FINDINGS.md) for the full write-ups.*
