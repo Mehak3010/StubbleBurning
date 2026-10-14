@@ -511,7 +511,7 @@ export default function StubbleDashboard() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-                <Note>Calendar baseline = day of season, Diwali window, weekend. Adding fire counts does not improve on it.</Note>
+                <Note>Calendar baseline = day of season, Diwali window, weekend. Fire counts add nothing to it on this scale, but add about +0.08 R&sup2; on top of weather. The gain varies by season and by modeling choice.</Note>
               </div>
               <div style={panel}>
                 <div style={{ fontFamily: mono, fontSize: 11, color: COLORS.textMute, marginBottom: 8 }}>DAY-TO-DAY SWINGS WITHIN A SEASON (MEAN R&sup2;)</div>
@@ -527,12 +527,12 @@ export default function StubbleDashboard() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-                <Note>After removing each season's Oct&ndash;Nov ramp, weather explains more of the day-to-day swings than fire counts do.</Note>
+                <Note>After removing each season's Oct&ndash;Nov ramp, weather explains more of the day-to-day swings than fire counts do. The fire contribution is sensitive to how the ramp is removed, from about zero to a clear gain.</Note>
               </div>
             </div>
             <div style={{ ...panel, marginTop: 20 }}>
               <div style={{ fontFamily: sans, fontSize: 13, color: COLORS.textMute, lineHeight: 1.6 }}>
-                <strong style={{ color: COLORS.text }}>Reading this carefully.</strong> Same-day fire anomalies correlate with PM2.5 anomalies at about r&nbsp;=&nbsp;0.31 (95% block-bootstrap interval 0.13&ndash;0.47); 3-day and 7-day versions are weaker and their intervals include zero. This does not show that stubble burning doesn't matter. Daily satellite fire counts are a crude proxy for smoke reaching Delhi: they ignore where fires are, how big they are, which way the wind blows, and the time of day of the satellite pass. The study box covers only part of the burning region, and four seasons is a small sample. Full details are in <code>PHASE2_FINDINGS.md</code>.
+                <strong style={{ color: COLORS.text }}>Reading this carefully.</strong> Same-day fire anomalies correlate with PM2.5 anomalies at about r&nbsp;=&nbsp;0.31 (95% block-bootstrap interval 0.13&ndash;0.47); 3-day and 7-day versions are weaker and their intervals include zero. These figures depend on how the seasonal ramp is removed. This does not show that stubble burning doesn't matter. Daily satellite fire counts are a crude proxy for smoke reaching Delhi: they ignore where fires are, how big they are, which way the wind blows, and the time of day of the satellite pass. The study box covers only part of the burning region, and four seasons is a small sample. Full details are in <code>PHASE2_FINDINGS.md</code>.
               </div>
             </div>
           </div>

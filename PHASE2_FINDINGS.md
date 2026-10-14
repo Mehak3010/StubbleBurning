@@ -15,7 +15,7 @@ Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found 
 1. **Two data problems were found and fixed** (below), and Phase 1's figures were recomputed on the corrected data.
 2. **Some Phase 1 observations hold:** 2025 had about 10x fewer fires than 2022 (36,310 vs 3,430 detections), and Delhi's smog was not lower for it.
 3. **Several Phase 1 claims are not supported** once the data is corrected and weather is added: the 12-36 hour lag, the "~48% explained by fires" figure, and the what-if simulator's absolute predictions.
-4. **Within a season, daily fire counts add little predictive power** beyond the seasonal pattern and basic weather. Weather anomalies explain more than fire anomalies do.
+4. **Fire counts carry a modest, model-dependent signal.** In the main within-season analysis, daily fire counts add little predictive power beyond the seasonal pattern and basic weather, and weather anomalies explain more than fire anomalies do. But the size of the fire contribution depends on modeling choices, from about zero to a clear gain (see the robustness section), and it is positive in some seasons and absent in others.
 5. **This does not show that stubble burning doesn't matter.** Daily NOAA-20 fire counts compared against a citywide PM2.5 average are a weak proxy for smoke reaching Delhi. The honest conclusion is that this dataset cannot isolate the stubble contribution.
 
 ---
@@ -81,7 +81,7 @@ Each season was held out in turn. R² on the held-out season; every model includ
 | E. + yesterday's PM2.5 | 0.547 | 0.716 | 0.600 | 0.736 | 0.650 |
 | F. everything + yesterday's PM2.5 | 0.468 | 0.750 | 0.617 | 0.713 | 0.637 |
 
-- Adding fires to the calendar baseline gives no gain on average (0.276 vs 0.275).
+- Adding fires to the calendar baseline gives no gain on average on the raw PM2.5 scale (0.276 vs 0.275). On a log(PM2.5) target the same comparison gives about +0.07 (0.129 to 0.198). Adding fires on top of weather improves mean R² by about +0.08 on both scales (raw 0.179 to 0.257; log 0.200 to 0.279). See the robustness section.
 - Next-day forecasting is dominated by persistence (E); fires and weather do not improve on it (F).
 - Four seasons of about 55 usable days each is a small sample; per-season values are noisy.
 
@@ -123,7 +123,7 @@ An earlier, simpler check (linear detrend, no bootstrap) showed correlations of 
 | Fire anomalies | 0.002 | -0.105 | -0.001 | -0.014 | -0.030 |
 | Fires + weather | 0.252 | 0.188 | -0.042 | 0.158 | 0.139 |
 
-Weather explains more day-to-day variation than fires do. Adding fires to weather moves mean R² from 0.133 to 0.139, which is within noise. Weather coefficients have physically sensible signs (upwind alignment positive; wind speed and ventilation negative).
+In this setup weather explains more day-to-day variation than fires do, and adding fires to weather moves mean R² only from 0.133 to 0.139, which is within noise. This depends on how the seasonal ramp is removed (see the robustness section). Weather coefficients have physically sensible signs (upwind alignment positive; wind speed and ventilation negative).
 
 ---
 
@@ -135,14 +135,40 @@ Weather explains more day-to-day variation than fires do. Adding fires to weathe
 | A model explains ~48% of daily PM2.5 using only fire data, tested on an unseen 2025 season | **Superseded.** Recomputed on corrected data (Ridge R² 0.545). The model includes day of season, and a calendar-only baseline reaches similar skill on 2025, so this is not a fire-only figure |
 | 2025 had 10x fewer fires than 2022, yet Delhi still choked | **Confirmed.** 36,310 vs 3,430 detections; mean PM2.5 of 169 vs 140 |
 | Fires are a big piece of the story | **Not established** by this data |
-| Wind and weather are missing pieces | **Supported.** Weather anomalies outperform fire anomalies |
+| Wind and weather are missing pieces | **Supported in the main analysis** (weather anomalies outperform fire anomalies), though that comparison is sensitive to modeling choices |
 | What-if simulator: 800 fires/day sustained for a week pushes Delhi into "Very Poor" air | **Retracted.** It assumed a stable cross-year relationship between fire count and PM2.5 level, which the data does not support |
 
 ---
 
+## 6b. Robustness of the main result
+
+The within-season question was re-run under alternative choices (`final_checks.py`). "Gain" is the change in mean leave-one-season-out R² on PM2.5 anomalies when fire features are added to weather.
+
+| Variant | Weather only | Fires + weather | Gain from fires |
+|---|---|---|---|
+| Quadratic detrend (main analysis) | 0.133 | 0.139 | +0.006 |
+| Linear detrend | 0.219 | 0.456 | +0.236 |
+| Cubic detrend | -0.059 | -0.056 | +0.003 |
+| Drop 2022 | 0.015 | 0.011 | -0.004 |
+| Drop 2023 | 0.078 | 0.073 | -0.005 |
+| Drop 2024 | 0.152 | 0.221 | +0.069 |
+| Drop 2025 | 0.109 | 0.138 | +0.029 |
+| Fire intensity (FRP sum) instead of count | 0.133 | 0.129 | -0.004 |
+| Diwali dates shifted -1 day | 0.145 | 0.153 | +0.008 |
+| Diwali dates shifted +1 day | 0.144 | 0.149 | +0.005 |
+
+Level models (not anomalies) on a log(PM2.5) target, mean R²: calendar 0.129, + fires 0.198, + weather 0.200, + fires + weather 0.279. Gain from fires on top of weather by held-out season: +0.03 (2022), +0.28 (2023), +0.10 (2024), -0.09 (2025). Forecast models using yesterday's PM2.5 are unstable on this scale (one fold at R² of -1.17) and are not used.
+
+**What this means.**
+- The fire contribution is small in the main setup but not zero, and it moves with modeling choices: roughly +0.00 to +0.07 in most variants, and +0.24 with a linear seasonal detrend.
+- A linear detrend leaves seasonal curvature that fires and PM2.5 may share, so the larger value is probably not a pure day-to-day effect. A cubic detrend may remove genuine fire-driven variation. Neither choice is clearly correct.
+- The gain is uneven across seasons: clear in 2023 and 2024, small in 2022 and negative in 2025.
+- The data therefore support "fire counts add a modest, fragile signal beyond season and weather", not "fires matter little" and not "fires explain most of the variation".
+
 ## 7. Limitations
 
 - **Partial regional coverage.** The fire box omits parts of the burning region. If the geographic mix of burning shifted between years, counts could understate those shifts. Re-running with full-region coverage is a Phase 3 item.
+- **Seasonal shape is hard to separate from fires.** Fires and PM2.5 both rise and fall through Oct-Nov, and how that shape is removed changes the estimated fire contribution from about zero to substantial.
 - **Four seasons, about 220 usable days.** Results are sensitive to individual years.
 - **Detection undercount is possible.** NOAA-20 crosses over in the early afternoon; if a large share of burning happens later in the day, daily counts understate activity, and that share may vary by year. This is a hypothesis to verify against the literature, not something shown here.
 - **Counts ignore location and size.** A count does not capture distance to Delhi, fire size, or whether the wind carried smoke toward the city. FRP was available but only used in early versions.
