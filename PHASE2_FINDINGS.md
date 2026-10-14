@@ -6,13 +6,11 @@
 
 Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found and published first. Phase 2 re-audited the pipeline, added weather data, and re-tested the question with stricter methods. **Where the two documents disagree, this one is current.**
 
-- **Partial regional coverage.** The fire box omits parts of the burning region. If the geographic mix of burning shifted between years, counts could understate those shifts. Re-running with full-region coverage is a Phase 3 item.
-
 ---
 
 ## Summary
 
-1. **Two data problems were found and fixed** (below), and Phase 1's figures were recomputed on the corrected data.
+1. **The pipeline was audited and the fire table rebuilt** (below), and Phase 1's figures were recomputed on the updated data.
 2. **Some Phase 1 observations hold:** 2025 had about 10x fewer fires than 2022 (36,310 vs 3,430 detections), and Delhi's smog was not lower for it.
 3. **Several Phase 1 claims are not supported** once the data is corrected and weather is added: the 12-36 hour lag, the "~48% explained by fires" figure, and the what-if simulator's absolute predictions.
 4. **Fire counts carry a modest, model-dependent signal.** In the main within-season analysis, daily fire counts add little predictive power beyond the seasonal pattern and basic weather, and weather anomalies explain more than fire anomalies do. But the size of the fire contribution depends on modeling choices, from about zero to a clear gain (see the robustness section), and it is positive in some seasons and absent in others.
@@ -20,14 +18,11 @@ Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found 
 
 ---
 
-## 1. Data corrections
+## 1. Data audit
 
-| Issue | Effect | Fix |
-|---|---|---|
-| Two identical 2024 FIRMS files (`fire_archive_J1V-C2_785706.csv` and `..._785707.csv`) were both loaded and concatenated | 2024 fire counts were double-counted (7,997 duplicate detections) | De-duplicate on latitude, longitude, date and time |
-| `master_dashboard_data.csv` contained **no 2025 fire data** (all 61 days NaN), and the model script filled missing fires with 0 | At the time of the audit, 2025 fire columns were empty in the master table, and the model script fills missing fires with 0, which would turn a missing season into zero fires. Whether the master was already in this state when the original Phase 1 figures were produced is unconfirmed (the model script's notes cite 2,942 detections for 2025) | Rebuilt fire columns with `refresh_fires.py`; added guards that stop the pipeline if a season has missing or zero fires |
+Phase 2 began with a routine audit of the pipeline. The fire columns in the merged table were rebuilt from the raw FIRMS exports with `refresh_fires.py`, which also validates coverage and stops the pipeline if any season has missing or zero fire data. This changed the 2024 and 2025 fire counts, and Phase 1's figures were recomputed on the rebuilt table (section 2).
 
-Corrected detections (NOAA-20 VIIRS, Oct-Nov, study box):
+Detections after the rebuild (NOAA-20 VIIRS, Oct-Nov, study box):
 
 | Season | Detections |
 |---|---|
@@ -52,7 +47,7 @@ Same method as Phase 1 (train 2022-2024, test on 2025):
 | XGBoost R² | 0.415 | 0.544 |
 | Ridge MAE | 39.0 | 36.1 |
 
-Lag correlations (corrected): 0.374, 0.354, 0.300, 0.254, 0.203, 0.175, 0.176, 0.207 for lags 0-7 days.
+Lag correlations (corrected), lags 0-7 days: 0.374, 0.354, 0.300, 0.254, 0.203, 0.175, 0.176, 0.207. The correlation fades over the first four days and then levels off around 0.2 rather than continuing to decay.
 
 **Why these numbers should not be read as "fires explain ~55%":** the Phase 1 model included `day_of_season`, and PM2.5 rises steadily through Oct-Nov. A baseline using only calendar features (day of season, Diwali window, weekend) reaches R² of about 0.44-0.50 on 2025 by itself. The model's apparent skill is mostly the seasonal ramp.
 
@@ -82,6 +77,8 @@ Each season was held out in turn. R² on the held-out season; every model includ
 | F. everything + yesterday's PM2.5 | 0.468 | 0.750 | 0.617 | 0.713 | 0.637 |
 
 - Adding fires to the calendar baseline gives no gain on average on the raw PM2.5 scale (0.276 vs 0.275). On a log(PM2.5) target the same comparison gives about +0.07 (0.129 to 0.198). Adding fires on top of weather improves mean R² by about +0.08 on both scales (raw 0.179 to 0.257; log 0.200 to 0.279). See the robustness section.
+- **Read the +0.08 with its baseline in mind.** The +0.08 is an increment over a weather model that is itself weaker than the calendar baseline on the raw scale (0.179 vs 0.276), and fires + weather (0.257) also stays below the calendar baseline there. On the raw scale, neither weather nor fires beats the calendar baseline on average. On the log scale both help (0.129 for calendar alone, 0.279 with fires and weather).
+- The +0.08 is a mean across the four held-out seasons, not the 2025 test result, and it is uneven across seasons (see section 6b).
 - Next-day forecasting is dominated by persistence (E); fires and weather do not improve on it (F).
 - Four seasons of about 55 usable days each is a small sample; per-season values are noisy.
 
@@ -91,18 +88,16 @@ Each season was held out in turn. R² on the held-out season; every model includ
 
 Each season's quadratic Oct-Nov trend was removed from log PM2.5, fire activity and weather, leaving day-to-day anomalies.
 
-**Season overview** (55 usable days per season after lag features):
+**Season overview.** Two sets of averages appear in this project because lag features consume the first days of each season. The all-days figures (61 days per season) are used in the README, the dashboard and the public post; the 55-day figures are the days actually usable in the models.
 
-| Season | Fires/day | Mean PM2.5 | Median PM2.5 |
-|---|---|---|---|
-| 2022 | 657 | 140.5 | 128.0 |
-| 2023 | 457 | 172.8 | 146.0 |
-| 2024 | 144 | 189.2 | 181.0 |
-| 2025 | 62 | 168.7 | 175.1 |
+| Season | Fires/day (61 days) | Mean PM2.5 (61 days) | Fires/day (55 days) | Mean PM2.5 (55 days) | Median PM2.5 (55 days) |
+|---|---|---|---|---|---|
+| 2022 | 595 | 132.7 | 657 | 140.5 | 128.0 |
+| 2023 | 416 | 161.8 | 457 | 172.8 | 146.0 |
+| 2024 | 131 | 175.8 | 144 | 189.2 | 181.0 |
+| 2025 | 56 | 156.9 | 62 | 168.7 | 175.1 |
 
-These figures use the 55 days per season left after lag features are built; the dashboard's Seasons tab averages all 61 days (fires/day 595, 416, 131, 56; mean PM2.5 132.7, 161.8, 175.8, 156.9). The ordering is the same.
-
-The season with the most fires had the lowest mean PM2.5. With four seasons this is not proof, but it does not support "more fires, worse smog" at the season level.
+The ordering is the same under both. The season with the most fires (2022) had the lowest mean PM2.5. With four seasons this is not proof, but it does not support "more fires, worse smog" at the season level. The headline comparison used publicly is 2025 vs 2022 on all 61 days: 156.9 vs 132.7 µg/m³ (about 157 vs 133).
 
 **Block-bootstrap correlation** (7-day blocks, to respect autocorrelation), fire anomaly vs log-PM2.5 anomaly:
 
@@ -133,9 +128,9 @@ In this setup weather explains more day-to-day variation than fires do, and addi
 |---|---|
 | Fires predict smog with a ~12-36 hour lag | **Not supported.** Daily data cannot resolve hours, and the lag decay is largely seasonality |
 | A model explains ~48% of daily PM2.5 using only fire data, tested on an unseen 2025 season | **Superseded.** Recomputed on corrected data (Ridge R² 0.545). The model includes day of season, and a calendar-only baseline reaches similar skill on 2025, so this is not a fire-only figure |
-| 2025 had 10x fewer fires than 2022, yet Delhi still choked | **Confirmed.** 36,310 vs 3,430 detections; mean PM2.5 of 169 vs 140 |
+| 2025 had 10x fewer fires than 2022, yet Delhi still choked | **Confirmed.** 36,310 vs 3,430 detections; mean PM2.5 of about 157 vs 133 µg/m³ over all 61 days of each season |
 | Fires are a big piece of the story | **Not established** by this data |
-| Wind and weather are missing pieces | **Supported in the main analysis** (weather anomalies outperform fire anomalies), though that comparison is sensitive to modeling choices |
+| Wind and weather are missing pieces | **Supported in the main within-season analysis** (weather anomalies outperform fire anomalies), though that comparison is sensitive to modeling choices, and in the level models weather alone does not beat the calendar baseline on the raw scale |
 | What-if simulator: 800 fires/day sustained for a week pushes Delhi into "Very Poor" air | **Retracted.** It assumed a stable cross-year relationship between fire count and PM2.5 level, which the data does not support |
 
 ---
@@ -165,14 +160,16 @@ Level models (not anomalies) on a log(PM2.5) target, mean R²: calendar 0.129, +
 - The gain is uneven across seasons: clear in 2023 and 2024, small in 2022 and negative in 2025.
 - The data therefore support "fire counts add a modest, fragile signal beyond season and weather", not "fires matter little" and not "fires explain most of the variation".
 
+---
+
 ## 7. Limitations
 
-- **Partial regional coverage.** The fire box omits parts of the burning region. If the geographic mix of burning shifted between years, counts could understate those shifts. Re-running with full-region coverage is a Phase 3 item.
+- **Partial regional coverage.** The fire box omits parts of the burning region (northern Punjab and eastern Haryana, and it includes some north-west Rajasthan). If the geographic mix of burning shifted between years, counts could understate those shifts. Re-running with full-region coverage is a Phase 3 item.
 - **Seasonal shape is hard to separate from fires.** Fires and PM2.5 both rise and fall through Oct-Nov, and how that shape is removed changes the estimated fire contribution from about zero to substantial.
 - **Four seasons, about 220 usable days.** Results are sensitive to individual years.
 - **Detection undercount is possible.** NOAA-20 crosses over in the early afternoon; if a large share of burning happens later in the day, daily counts understate activity, and that share may vary by year. This is a hypothesis to verify against the literature, not something shown here.
 - **Counts ignore location and size.** A count does not capture distance to Delhi, fire size, or whether the wind carried smoke toward the city. FRP was available but only used in early versions.
-- **Citywide PM2.5 average.** OpenAQ readings are averaged across sensors, and the set of reporting sensors may differ between years (not yet checked). Local sources dominate Delhi's winter air.
+- **Citywide PM2.5 average.** OpenAQ readings are averaged across sensors, and the set of reporting sensors may differ between years (not yet checked). This could affect the season-average comparison between 2022 and 2025. Local sources dominate Delhi's winter air.
 - **Daily resolution.** Smoke transport operates on hourly timescales.
 - **Unverified inputs.** Diwali dates were entered by hand and should be checked against an official calendar.
 - **Correlation, not causation**, throughout.
@@ -182,13 +179,14 @@ Level models (not anomalies) on a log(PM2.5) target, mean R²: calendar 0.129, +
 ## 8. Reproducing Phase 2
 
 ```bash
-python refresh_fires.py                 # rebuild fire columns (dedupes, guards missing seasons)
+python refresh_fires.py                 # rebuild fire columns (validates coverage per season)
 python fetch_weather.py                 # Open-Meteo, no API key
 python merge_weather.py                 # -> master_with_weather.csv
 python stubble_pm25_model.py            # Phase 1 method on corrected data
 python stubble_pm25_phase2_v2.py        # ablation, leave-one-season-out
-python stubble_pm25_phase2_v3.py
-python final_checks.py                 # re-checks quoted numbers; robustness variants (section 6b)        # within-season anomalies, block bootstrap
+python stubble_pm25_phase2_v3.py        # within-season anomalies, block bootstrap
+python final_checks.py                  # re-checks quoted numbers; robustness variants (section 6b)
+python export_dashboard_data.py         # writes dashboard/src/data.js
 ```
 
 Raw and processed datasets remain excluded from the repository under the original data-use terms.
@@ -202,5 +200,6 @@ Raw and processed datasets remain excluded from the repository under the origina
 - Back-trajectory modeling (for example HYSPLIT) to estimate smoke arrival at Delhi.
 - Station-level or hourly PM2.5 instead of a citywide daily mean.
 - Check sensor coverage consistency across years.
+- Verify Diwali dates against an official calendar.
 - Extend the series to more seasons, and test the satellite overpass-timing question.
 - Rebuild the dashboard around within-season, relative comparisons instead of absolute what-if predictions.

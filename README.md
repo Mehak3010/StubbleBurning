@@ -19,15 +19,18 @@ numbers instead of received wisdom.
 Oct–Nov **2022–2025** (4 seasons), merged with Delhi-NCR daily PM2.5 (OpenAQ).
 244 daily records after cleaning.
 
-**Fire activity and smog move together over following days.** Same-day fire
-activity correlates with Delhi PM2.5 at **r = 0.37**, decaying over the next
-week. That fits smoke arriving within days of burning, though daily data
-cannot resolve a specific transport time, and part of the pattern reflects
-both series rising through the season.
+> **Note:** Phase 1 figures were updated after a pipeline audit (r 0.44 → 0.37,
+> R² 0.48 → ≈0.55). Details in [`PHASE2_FINDINGS.md`](PHASE2_FINDINGS.md).
 
-| Lag (days)  | 0     | 1     | 2     | 3     | 4     | 7     |
-| ----------- | ----- | ----- | ----- | ----- | ----- | ----- |
-| Correlation | 0.374 | 0.354 | 0.300 | 0.254 | 0.203 | 0.207 |
+**Fire activity and smog move together over following days.** Same-day fire
+activity correlates with Delhi PM2.5 at **r = 0.37**, fading over the following
+days and then levelling off near 0.2. That fits smoke arriving within days of
+burning, though daily data cannot resolve a specific transport time, and part
+of the pattern reflects both series rising through the season.
+
+| Lag (days)  | 0     | 1     | 2     | 3     | 4     | 5     | 6     | 7     |
+| ----------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
+| Correlation | 0.374 | 0.354 | 0.300 | 0.254 | 0.203 | 0.175 | 0.176 | 0.207 |
 
 **Models reach R² ≈ 0.54–0.56** on a held-out season, trained on 2022–2024 and
 tested on the fully held-out 2025 season (a genuine future-year test, not an
@@ -54,9 +57,9 @@ and re-tests the question with stricter methods. See
 ## Phase 2 at a glance
 
 - **Season explains a lot.** A calendar-only model (day of season, Diwali window, weekend) reaches R² of about 0.50 on the same held-out 2025 test; much of the Phase 1 score is the Oct–Nov rise in PM2.5.
-- **Fire counts add a modest, fragile signal.** On top of weather they lift leave-one-season-out R² by about +0.08. The gain varies by season and by modeling choice (see section 6b of `PHASE2_FINDINGS.md`).
-- **Weather matters.** Within a season, weather anomalies explain more of the day-to-day swings than fire counts do in the main setup (R² 0.13 vs about 0), though this comparison is sensitive to how the seasonal ramp is removed.
-- **Fewer fires, not less smog.** 2025 had about 91% fewer detections than 2022 (3,430 vs 36,310), yet season-average PM2.5 was higher (157 vs 133 µg/m³).
+- **Fire counts add a modest, fragile signal.** On top of weather they lift leave-one-season-out R² by about +0.08 (a mean across the four held-out seasons, not the 2025 test result). The gain varies by season and by modeling choice (see section 6b of `PHASE2_FINDINGS.md`). Note the baseline: on the raw PM2.5 scale, neither weather nor fires + weather beats the calendar-only model on average (0.179 and 0.257 vs 0.276); on a log scale both help.
+- **Weather matters.** Within a season, weather anomalies explain more of the day-to-day swings than fire counts do in the main setup (R² 0.13 vs about 0), though this comparison is sensitive to how the seasonal ramp is removed. This rests on the within-season anomaly analysis; in the level models weather alone does not beat the calendar baseline on the raw scale.
+- **Fewer fires, not less smog.** 2025 had about 91% fewer detections than 2022 (3,430 vs 36,310), yet season-average PM2.5 was higher (157 vs 133 µg/m³, averaged over all 61 days of each season). The citywide sensor mix across years has not yet been checked.
 - **Not established:** what share of Delhi's smog stubble burning accounts for. Daily satellite counts in a fixed box and a citywide PM2.5 average cannot settle that.
 
 `python final_checks.py` re-computes every number quoted in the docs and dashboard.
@@ -71,13 +74,14 @@ and re-tests the question with stricter methods. See
 ├── PHASE2_FINDINGS.md          # Phase 2: weather, ablations, within-season analysis
 ├── prepare_dashboard_data.py   # Merges NASA FIRMS fire data + OpenAQ PM2.5 into one daily table
 ├── stubble_pm25_model.py       # Phase 1: feature engineering + Ridge / RF / XGBoost comparison
-├── refresh_fires.py            # Rebuilds fire columns from FIRMS files (dedupes, checks coverage)
+├── refresh_fires.py            # Rebuilds fire columns from FIRMS files (checks coverage)
 ├── fetch_weather.py            # Phase 2: daily weather from Open-Meteo (no API key)
 ├── merge_weather.py            # Phase 2: merges weather into the master table
 ├── stubble_pm25_phase2_v2.py   # Phase 2: ablation, leave-one-season-out CV
 ├── stubble_pm25_phase2_v3.py   # Phase 2: within-season anomalies, block bootstrap
 ├── export_dashboard_data.py    # Builds dashboard/src/data.js from the corrected master table
 ├── final_checks.py             # Re-checks every quoted number; robustness variants
+├── requirements.txt            # Python dependencies
 └── dashboard/                  # React dashboard (data embedded at build time)
 ```
 
@@ -96,19 +100,20 @@ and re-tests the question with stricter methods. See
 ## Running the pipeline
 
 ```
-pip install pandas requests scikit-learn xgboost numpy
+pip install -r requirements.txt
 
 # Phase 1
 export OPENAQ_API_KEY="your-key-here"
 python prepare_dashboard_data.py     # merge fire + air quality into master_dashboard_data.csv
+python refresh_fires.py              # rebuild fire columns (checks coverage per season)
 python stubble_pm25_model.py         # features, models, held-out 2025 evaluation
 
 # Phase 2
 python fetch_weather.py              # Open-Meteo, no key needed
 python merge_weather.py              # -> master_with_weather.csv
-python stubble_pm25_phase2_v2.py
-python stubble_pm25_phase2_v3.py
-python final_checks.py              # re-checks quoted numbers, runs robustness variants
+python stubble_pm25_phase2_v2.py     # ablation, leave-one-season-out
+python stubble_pm25_phase2_v3.py     # within-season anomalies, block bootstrap
+python final_checks.py               # re-checks quoted numbers, runs robustness variants
 python export_dashboard_data.py      # writes dashboard/src/data.js for the dashboard
 ```
 
@@ -124,12 +129,16 @@ npm run dev
 
 - Only NOAA-20 (J1V) fire detections are used, never mixed with S-NPP (SV),
   so fire counts are comparable year over year.
-- The pipeline de-duplicates detections and stops if any season has missing or
-  zero fire data, rather than filling the gap.
+- The pipeline stops if any season has missing or zero fire data, rather than
+  filling the gap.
 - Models are evaluated on a **time-based split** (train 2022–2024, test on the
   held-out 2025 season), not a random split.
 - Phase 1 models include day-of-season, so reported R² reflects the seasonal
   rise in PM2.5 as well as fire activity. Phase 2 separates the two.
+- Citywide PM2.5 is averaged across OpenAQ sensors; whether the reporting
+  sensor set changed between years has not been checked yet.
+- Diwali dates were entered by hand and still need verification against an
+  official calendar.
 
 ---
 
