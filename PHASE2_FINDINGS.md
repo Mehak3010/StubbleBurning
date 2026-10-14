@@ -2,7 +2,7 @@
 
 **Question (unchanged):** Does Punjab/Haryana crop-residue burning predict Delhi-NCR's daily PM2.5?
 
-**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. This approximately covers central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
+**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. By area it is roughly two-thirds Punjab, a quarter Haryana and 9% north-west Rajasthan, covering much of central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
 
 Phase 1 (`PHASE1_FINDINGS.md`) is kept as the original record of what was found and published first. Phase 2 re-audited the pipeline, added weather data, and re-tested the question with stricter methods. **Where the two documents disagree, this one is current.**
 
@@ -187,7 +187,8 @@ python fetch_weather.py                 # Open-Meteo, no API key
 python merge_weather.py                 # -> master_with_weather.csv
 python stubble_pm25_model.py            # Phase 1 method on corrected data
 python stubble_pm25_phase2_v2.py        # ablation, leave-one-season-out
-python stubble_pm25_phase2_v3.py        # within-season anomalies, block bootstrap
+python stubble_pm25_phase2_v3.py
+python final_checks.py                 # re-checks quoted numbers; robustness variants (section 6b)        # within-season anomalies, block bootstrap
 ```
 
 Raw and processed datasets remain excluded from the repository under the original data-use terms.

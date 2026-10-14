@@ -2,7 +2,7 @@
 
 **Data:** NASA FIRMS VIIRS (NOAA-20) fire detections over the study area, Oct–Nov **2022–2025** (4 seasons), merged with Delhi-NCR daily PM2.5 (OpenAQ). 244 daily records after cleaning.
 
-**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. This approximately covers central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
+**Study area:** NOAA-20 fire detections inside a fixed bounding box of 74.5–76.0°E, 29.0–31.5°N, used identically for all four seasons. By area it is roughly two-thirds Punjab, a quarter Haryana and 9% north-west Rajasthan, covering much of central and western Punjab and part of north-west Haryana; northern Punjab and eastern Haryana are outside it, so counts understate regional burning. Year-to-year comparisons are like for like within the box.
 
 ## Data quality notes
 - Two 2024 FIRMS exports (`fire_archive_J1V-C2_785706.csv` and `_785707.csv`) are identical (7,997 rows each, same dates). Duplicates are removed by de-duplicating on location, date and time.
